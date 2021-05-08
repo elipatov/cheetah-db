@@ -1,6 +1,5 @@
-# CheetahDB
 <p align="left">
   <img src="logo.png"/>
 </p>
 
-[![Build Status](https://github.com/elipatov/cheetah-db/tree/main/.github/workflows/CI/badge.svg?branch=master)](https://github.com/elipatov/cheetah-db/actions)
+[![Build Status](https://github.com/elipatov/cheetah-db/workflows/CI/badge.svg)](https://github.com/elipatov/cheetah-db/actions)
