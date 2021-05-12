@@ -1,13 +1,9 @@
 package elipatov.cheetahdb.core
 
-import cats.effect.{Async, IO, Sync}
-import org.scalatest.flatspec.AnyFlatSpec
+import cats.effect.IO
+import cats.implicits.toTraverseOps
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
-import cats.effect.syntax.all._
-import cats.implicits.toTraverseOps
-import io.circe.syntax._
-import org.scalacheck.Gen
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 
 class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with Matchers {
@@ -16,11 +12,11 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
   def init(count0: Int, count1: Int, count2: Int) =
     for {
       node0 <- GCounterCvRDT.of[IO](0, replicasCount)
-      _     <- (1 to count0).toList.traverse(_ => node0.increment())
+      _     <- (1 to count0).toList.traverse(_ => node0.modify(1))
       node1 <- GCounterCvRDT.of[IO](1, replicasCount)
-      _     <- (1 to count1).toList.traverse(_ => node1.increment())
+      _     <- (1 to count1).toList.traverse(_ => node1.modify(1))
       node2 <- GCounterCvRDT.of[IO](2, replicasCount)
-      _     <- (1 to count2).toList.traverse(_ => node2.increment())
+      _     <- node2.modify(count2)
     } yield (node0, node1, node2)
 
   "G-Counter" - {
@@ -29,9 +25,9 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
         val res = for {
           ns <- init(c0, c1, c2)
           (node0, node1, node2) = ns
-          count0 <- node0.count
-          count1 <- node1.count
-          count2 <- node2.count
+          count0 <- node0.get
+          count1 <- node1.get
+          count2 <- node2.get
         } yield (count0, count1, count2)
 
         res.unsafeRunSync() == (c0, c1, c2)
@@ -45,9 +41,9 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
           (node0, node1, node2) = ns
           counts0 <- node0.getState()
           _       <- node1.merge(counts0)
-          count0  <- node0.count
-          count1  <- node1.count
-          count2  <- node2.count
+          count0  <- node0.get
+          count1  <- node1.get
+          count2  <- node2.get
         } yield (count0, count1, count2)
 
         res.unsafeRunSync() == (c0, c0 + c1, c2)
@@ -67,9 +63,9 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
           _       <- node1.merge(counts2)
           counts0 <- node0.getState()
           _       <- node1.merge(counts0)
-          count0  <- node0.count
-          count1  <- node1.count
-          count2  <- node2.count
+          count0  <- node0.get
+          count1  <- node1.get
+          count2  <- node2.get
         } yield (count0, count1, count2)
 
         res.unsafeRunSync() == (c0 + c1 + c2, c0 + c1 + c2, c0 + c1 + c2)

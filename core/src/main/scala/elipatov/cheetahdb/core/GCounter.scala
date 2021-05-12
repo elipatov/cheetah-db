@@ -12,23 +12,22 @@ import cats.effect.implicits._
 
 // G-counter in CRDT is a grow-only counter that only supports increment.
 // It is implemented as a state-based CvRDT.
-trait GCounter[F[_]] {
-  def increment(): F[Unit]
-  def count: F[Long]
-  def getState(): F[Array[Long]]
-  def merge(others: Array[Long]): F[Unit]
+trait GCounter[F[_]] extends CRDT[F, Array, Long] {
 }
 
-final class GCounterCvRDT[F[_]: Monad](replicaId: Int, counts: Ref[F, Array[Long]]) extends GCounter[F] {
-  def increment(): F[Unit] =
+private final class GCounterCvRDT[F[_]: Monad](
+    replicaId: Int,
+    counts: Ref[F, Array[Long]]
+) extends GCounter[F] {
+  def modify(value: Long): F[Unit] =
     counts.update(cs => {
-      cs(replicaId) += 1
+      cs(replicaId) += value
       cs
     })
 
-  override def count: F[Long] = counts.modify(cs => (cs, cs.sum))
+  override def get: F[Long] = counts.modify(cs => (cs, cs.sum))
 
-  override def getState(): F[Array[Long]] = counts.get.map(cs => cs)
+  override def getState(): F[Array[Long]] = counts.get
 
   override def merge(others: Array[Long]): F[Unit] =
     counts.update(cs => {
