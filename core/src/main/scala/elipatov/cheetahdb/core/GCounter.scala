@@ -49,4 +49,11 @@ object GCounterCvRDT {
       counter <- new GCounterCvRDT[F](replicaId, counts).pure[F]
     } yield counter
   }
+
+  def ctr[F[+_]: Sync](replicaId: Int, replicasCount: Int): F[() => GCounter[F]] = {
+    for {
+      counts <- Ref.of[F, Array[Long]](Array.ofDim(replicasCount))
+      ctr    <- (() => new GCounterCvRDT[F](replicaId, counts)).pure[F]
+    } yield ctr
+  }
 }

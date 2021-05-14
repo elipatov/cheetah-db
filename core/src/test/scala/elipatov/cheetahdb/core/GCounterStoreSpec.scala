@@ -18,7 +18,7 @@ class GCounterStoreSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks 
           count0   <- gCounter.get(key)
         } yield count0
 
-        res.unsafeRunSync() == c0
+        res.unsafeRunSync() should be(Some(c0))
       }
     }
 
@@ -31,9 +31,10 @@ class GCounterStoreSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks 
           count0   <- gCounter.get(key)
         } yield count0
 
-        res.unsafeRunSync() == c0 + c1
+        res.unsafeRunSync() should be(Some(c0 + c1))
       }
     }
+
 
     "creates multiple key" in {
       forAll { (key0: String, key1: String, c0: Byte, c1: Byte) =>
@@ -45,7 +46,7 @@ class GCounterStoreSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks 
           count1   <- gCounter.get(key1)
         } yield (count0, count1)
 
-        res.unsafeRunSync() == (c0, c1)
+        res.unsafeRunSync() should be(Some(c0), Some(c1))
       }
     }
   }

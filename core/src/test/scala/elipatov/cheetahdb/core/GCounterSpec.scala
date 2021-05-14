@@ -2,12 +2,14 @@ package elipatov.cheetahdb.core
 
 import cats.effect.IO
 import cats.implicits.toTraverseOps
+import org.scalacheck.Gen
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 
 class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with Matchers {
   val replicasCount = 3
+  val countGen = Gen.choose(1, 1000)
 
   def init(count0: Int, count1: Int, count2: Int) =
     for {
@@ -21,8 +23,8 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
 
   "G-Counter" - {
     "each node has it's own value" in {
-      forAll { (c0: Byte, c1: Byte, c2: Byte) =>
-        val res = for {
+      forAll(countGen, countGen, countGen) { (c0: Int, c1: Int, c2: Int) =>
+        val io = for {
           ns <- init(c0, c1, c2)
           (node0, node1, node2) = ns
           count0 <- node0.get
@@ -30,12 +32,13 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
           count2 <- node2.get
         } yield (count0, count1, count2)
 
-        res.unsafeRunSync() == (c0, c1, c2)
+        val res = io.unsafeRunSync()
+        res should be((c0, c1, c2))
       }
     }
 
     "merge node0 -> node1" in {
-      forAll { (c0: Byte, c1: Byte, c2: Byte) =>
+      forAll(countGen, countGen, countGen) { (c0: Int, c1: Int, c2: Int) =>
         val res = for {
           ns <- init(c0, c1, c2)
           (node0, node1, node2) = ns
@@ -46,12 +49,12 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
           count2  <- node2.get
         } yield (count0, count1, count2)
 
-        res.unsafeRunSync() == (c0, c0 + c1, c2)
+        res.unsafeRunSync() should be((c0, c0 + c1, c2))
       }
     }
 
     "merge node0 -> node1; node1 -> node2; node2 -> node0; node0 -> node1" in {
-      forAll { (c0: Byte, c1: Byte, c2: Byte) =>
+      forAll(countGen, countGen, countGen) { (c0: Int, c1: Int, c2: Int) =>
         val res = for {
           ns <- init(c0, c1, c2)
           (node0, node1, node2) = ns
@@ -60,7 +63,7 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
           counts1 <- node1.getState()
           _       <- node2.merge(counts1)
           counts2 <- node2.getState()
-          _       <- node1.merge(counts2)
+          _       <- node0.merge(counts2)
           counts0 <- node0.getState()
           _       <- node1.merge(counts0)
           count0  <- node0.get
@@ -68,7 +71,7 @@ class GCounterSpec extends AnyFreeSpec with ScalaCheckDrivenPropertyChecks with 
           count2  <- node2.get
         } yield (count0, count1, count2)
 
-        res.unsafeRunSync() == (c0 + c1 + c2, c0 + c1 + c2, c0 + c1 + c2)
+        res.unsafeRunSync() should be((c0 + c1 + c2, c0 + c1 + c2, c0 + c1 + c2))
       }
     }
   }

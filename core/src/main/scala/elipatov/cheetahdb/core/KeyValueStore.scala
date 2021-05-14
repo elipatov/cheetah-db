@@ -6,8 +6,6 @@ import cats.effect.concurrent.Ref
 import cats.syntax.all._
 import cats.effect.syntax.all._
 
-import scala.collection.mutable.Map
-
 trait CRDT[+F[_], C[_], V] {
   def get: F[V]
   def modify(value: V): F[Unit]
@@ -22,22 +20,20 @@ trait KeyValueStore[+F[_], K, V] {
 
 abstract class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
     store: Ref[F, Map[K, CRDT[F, C, V]]],
-    newCRDT: () => F[CRDT[F, C, V]]
+    newCRDT: F[() => CRDT[F, C, V]]
 ) extends KeyValueStore[F, K, V] {
   override def get(key: K): F[Option[V]] =
     store.modify(m => (m, m.get(key).traverse(_.get))).flatten
 
   override def put(key: K, value: V): F[Unit] = {
     for {
-      n <- newCRDT()
+      ctr <- newCRDT
       _ <- store.update(m => {
-        if (!m.contains(key)) {
-          m(key) = n
-        }
-        m(key).modify(value)
-        m
+        val crdt = m.get(key).getOrElse(ctr())
+        crdt.modify(value)
+        m.updated(key, crdt)
       })
-    } yield()
+    } yield ()
 
 //    store.update(m => {
 //      if (!m.contains(key)) {
@@ -57,8 +53,10 @@ object InMemoryCRDTStore {
   ): F[KeyValueStore[F, String, Long]] = {
     for {
       store <- Ref.of[F, Map[String, CRDT[F, Array, Long]]](Map.empty)
-      create = () => GCounterCvRDT.of(replicaId, replicasCount)
-    } yield new InMemoryCRDTStore[F, Array, String, Long](store, create) {}
+    } yield new InMemoryCRDTStore[F, Array, String, Long](
+      store,
+      GCounterCvRDT.ctr(replicaId, replicasCount)
+    ) {}
 
   }
 }
