@@ -39,15 +39,13 @@ abstract class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
       })
     } yield()
 
-    store.access
-
-    store.update(m => {
-      if (!m.contains(key)) {
-        newCRDT().flatMap(x => {m(key) = x; Applicative[F].pure(())})
-      }
-      m(key).modify(value)
-      m
-    })
+//    store.update(m => {
+//      if (!m.contains(key)) {
+//        newCRDT().flatMap(x => {m(key) = x; Applicative[F].pure(())})
+//      }
+//      m(key).modify(value)
+//      m
+//    })
 
   }
 }
