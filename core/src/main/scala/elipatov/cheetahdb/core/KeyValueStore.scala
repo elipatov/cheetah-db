@@ -28,11 +28,15 @@ abstract class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
   override def put(key: K, value: V): F[Unit] = {
     for {
       ctr <- newCRDT
-      _ <- store.update(m => {
-        val crdt = m.get(key).getOrElse(ctr())
-        crdt.modify(value)
-        m.updated(key, crdt)
+      crdt <- store.modify(m => {
+        if(!m.contains(key)) {
+          val crdt = ctr()
+          (m.updated(key, crdt), crdt)
+        } else (m, m(key))
+//        val crdt = m.get(key).map((m, _)).getOrElse(ctr())
+//        (m.updated(key, crdt), crdt)
       })
+      _ <- crdt.modify(value)
     } yield ()
 
 //    store.update(m => {
