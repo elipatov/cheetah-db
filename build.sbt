@@ -39,9 +39,9 @@ lazy val core = (project in file("core")
   "io.circe" %% "circe-parser" % circeVersion,
   "org.slf4j" % "slf4j-nop" % "1.6.4",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
-  "org.scalatest" %% "scalatest" % "3.2.3" % Test,
   "org.scalaj" %% "scalaj-http" % "2.4.2" % Test,
-  "org.scalacheck" %% "scalacheck" % "1.15.3" % Test,
-  "org.scalatestplus" %% "scalacheck-1-15" % "3.3.0.0-SNAP3" % Test,
+  "org.scalatest" %% "scalatest" % "3.2.7" % Test,
+  "org.scalacheck" %% "scalacheck" % "1.15.4" % Test,
+  "org.scalatestplus" %% "scalacheck-1-15" % "3.2.9.0" % Test,
 )))
 

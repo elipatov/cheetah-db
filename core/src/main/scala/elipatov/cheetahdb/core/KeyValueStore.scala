@@ -29,23 +29,13 @@ abstract class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
     for {
       ctr <- newCRDT
       crdt <- store.modify(m => {
-        if(!m.contains(key)) {
+        if (!m.contains(key)) {
           val crdt = ctr()
           (m.updated(key, crdt), crdt)
         } else (m, m(key))
-//        val crdt = m.get(key).map((m, _)).getOrElse(ctr())
-//        (m.updated(key, crdt), crdt)
       })
       _ <- crdt.modify(value)
     } yield ()
-
-//    store.update(m => {
-//      if (!m.contains(key)) {
-//        newCRDT().flatMap(x => {m(key) = x; Applicative[F].pure(())})
-//      }
-//      m(key).modify(value)
-//      m
-//    })
 
   }
 }

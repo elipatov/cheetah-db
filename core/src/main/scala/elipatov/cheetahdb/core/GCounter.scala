@@ -1,16 +1,10 @@
 package elipatov.cheetahdb.core
 
-import cats.effect.{Async, Concurrent, Timer}
+import cats.Monad
+import cats.effect.Sync
 import cats.effect.concurrent.Ref
 import cats.implicits.catsSyntaxApplicativeId
-import cats.Monad
 import cats.syntax.all._
-import cats.effect.syntax.all._
-import cats.effect.concurrent.Ref
-import cats.effect.{Async, Clock, Concurrent, ExitCode, IO, IOApp, Sync, Timer}
-import cats.effect.implicits._
-
-import scala.collection.mutable.Map
 
 // G-counter in CRDT is a grow-only counter that only supports increment.
 // It is implemented as a state-based CvRDT.
@@ -51,9 +45,6 @@ object GCounterCvRDT {
   }
 
   def ctr[F[+_]: Sync](replicaId: Int, replicasCount: Int): F[() => GCounter[F]] = {
-    for {
-      counts <- Ref.of[F, Array[Long]](Array.ofDim(replicasCount))
-      ctr    <- (() => new GCounterCvRDT[F](replicaId, counts)).pure[F]
-    } yield ctr
+    (() => new GCounterCvRDT[F](replicaId, Ref.unsafe[F, Array[Long]](Array.ofDim(replicasCount)))).pure[F]
   }
 }
