@@ -42,15 +42,14 @@ abstract class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
 
 object InMemoryCRDTStore {
   def gCounterStore[F[+_]: Sync](
-      replicaId: Int,
-      replicasCount: Int
+      nodeId: Int,
+      nodesCount: Int
   ): F[KeyValueStore[F, String, Long]] = {
-    for {
-      store <- Ref.of[F, Map[String, CRDT[F, Array, Long]]](Map.empty)
-    } yield new InMemoryCRDTStore[F, Array, String, Long](
-      store,
-      GCounterCvRDT.ctr(replicaId, replicasCount)
-    ) {}
+    Ref
+      .of[F, Map[String, CRDT[F, Vector, Long]]](Map.empty)
+      .map(s =>
+        new InMemoryCRDTStore[F, Vector, String, Long](s, GCounterCvRDT.ctr(nodeId, nodesCount)) {}
+      )
 
   }
 }

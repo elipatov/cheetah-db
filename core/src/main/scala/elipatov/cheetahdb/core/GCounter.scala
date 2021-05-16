@@ -8,43 +8,32 @@ import cats.syntax.all._
 
 // G-counter in CRDT is a grow-only counter that only supports increment.
 // It is implemented as a state-based CvRDT.
-trait GCounter[+F[_]] extends CRDT[F, Array, Long] {}
+trait GCounter[+F[_]] extends CRDT[F, Vector, Long] {}
 
 private final class GCounterCvRDT[+F[_]: Monad](
     replicaId: Int,
-    counts: Ref[F, Array[Long]]
+    counts: Vector[Ref[F, Long]]
 ) extends GCounter[F] {
-  def modify(value: Long): F[Unit] =
-    counts.update(cs => {
-      cs(replicaId) += value
-      cs
-    })
+  def modify(value: Long): F[Unit] = counts(replicaId).update(_ + value)
 
-  override def get: F[Long] = counts.modify(cs => (cs, cs.sum))
+  override def get: F[Long] = counts.traverse(c => c.get).map(_.sum)
 
-  override def getState(): F[Array[Long]] = counts.get
+  override def getState(): F[Vector[Long]] = counts.traverse(_.get)
 
-  override def merge(others: Array[Long]): F[Unit] =
-    counts.update(cs => {
-      others.zipWithIndex.foreach {
-        case (v, i) =>
-          if (v > cs(i)) {
-            cs(i) = v
-          }
-      }
-      cs
-    })
+  override def merge(others: Vector[Long]): F[Unit] = {
+    val tmp = counts.zip(others)
+      tmp.traverse { case(ref, o) =>
+        ref.update(math.max(_, o))
+      }.map(_ => ())
+  }
 }
 
 object GCounterCvRDT {
   def of[F[+_]: Sync](replicaId: Int, replicasCount: Int): F[GCounter[F]] = {
-    for {
-      counts  <- Ref.of[F, Array[Long]](Array.ofDim(replicasCount))
-      counter <- new GCounterCvRDT[F](replicaId, counts).pure[F]
-    } yield counter
+    new GCounterCvRDT[F](replicaId, Vector.fill(replicasCount)(Ref.unsafe[F, Long](0))).pure[F]
   }
 
   def ctr[F[+_]: Sync](replicaId: Int, replicasCount: Int): F[() => GCounter[F]] = {
-    (() => new GCounterCvRDT[F](replicaId, Ref.unsafe[F, Array[Long]](Array.ofDim(replicasCount)))).pure[F]
+    (() => new GCounterCvRDT[F](replicaId, Vector.fill(replicasCount)(Ref.unsafe[F, Long](0)))).pure[F]
   }
 }
