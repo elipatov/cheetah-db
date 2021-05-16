@@ -1,4 +1,4 @@
-package elipatov.cheetahdb.core
+package elipatov.cheetahdb
 
 import cats.effect.{ExitCode, IO, IOApp}
 
