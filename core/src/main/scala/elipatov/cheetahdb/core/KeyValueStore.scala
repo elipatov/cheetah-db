@@ -21,8 +21,7 @@ trait KeyValueStore[+F[_], C[_], K, V] {
 
 private final class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
     store: Ref[F, Map[K, CRDT[F, C, V]]],
-    newCRDT: F[() => CRDT[F, C, V]],
-    crdtFrom: F[(C[V]) => CRDT[F, C, V]]
+    newCRDT: F[() => CRDT[F, C, V]]
 ) extends KeyValueStore[F, C, K, V] {
   override def get(key: K): F[Option[V]] =
     store.modify(m => (m, m.get(key).traverse(_.get))).flatten
@@ -46,16 +45,16 @@ private final class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
       .traverse {
         case (key, state) => {
           for {
-            ctr <- crdtFrom
-            _ <- store.update(m => {
+            ctr <- newCRDT
+            crdt <- store.modify(m => {
               if (m.contains(key)) {
-                m(key).merge(state)
-                m
+                (m, m(key))
               } else {
-                m.updated(key, ctr(state))
+                val crdt = ctr()
+                (m.updated(key, crdt), crdt)
               }
-
             })
+            _ <- crdt.merge(state)
           } yield ()
         }
       }
@@ -70,11 +69,10 @@ object InMemoryCRDTStore {
   ): F[KeyValueStore[F, Vector, String, Long]] = {
     Ref
       .of[F, Map[String, CRDT[F, Vector, Long]]](Map.empty)
-      .map(s =>
+      .map(state =>
         new InMemoryCRDTStore[F, Vector, String, Long](
-          s,
-          GCounterCvRDT.ctr(nodeId, nodesCount),
-          GCounterCvRDT.ctr_(nodeId, nodesCount)
+          state,
+          GCounterCvRDT.ctr(nodeId, nodesCount)
         )
       )
 
