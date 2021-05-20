@@ -13,15 +13,16 @@ trait CRDT[+F[_], C[_], V] {
   def merge(others: C[V]): F[Unit]
 }
 
-trait KeyValueStore[+F[_], K, V] {
+trait KeyValueStore[+F[_], C[_], K, V] {
   def get(key: K): F[Option[V]]
   def put(key: K, value: V): F[Unit]
+  def sync(other: Map[K, C[V]]): F[Unit]
 }
 
-abstract class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
+private final class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
     store: Ref[F, Map[K, CRDT[F, C, V]]],
     newCRDT: F[() => CRDT[F, C, V]]
-) extends KeyValueStore[F, K, V] {
+) extends KeyValueStore[F, C, K, V] {
   override def get(key: K): F[Option[V]] =
     store.modify(m => (m, m.get(key).traverse(_.get))).flatten
 
@@ -38,17 +39,41 @@ abstract class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
     } yield ()
 
   }
+
+  override def sync(other: Map[K, C[V]]): F[Unit] = {
+    other.toList
+      .traverse {
+        case (key, state) => {
+          for {
+            ctr <- newCRDT
+            crdt <- store.modify(m => {
+              if (m.contains(key)) {
+                (m, m(key))
+              } else {
+                val crdt = ctr()
+                (m.updated(key, crdt), crdt)
+              }
+            })
+            _ <- crdt.merge(state)
+          } yield ()
+        }
+      }
+      .map(_ => ())
+  }
 }
 
 object InMemoryCRDTStore {
   def gCounterStore[F[+_]: Sync](
       nodeId: Int,
       nodesCount: Int
-  ): F[KeyValueStore[F, String, Long]] = {
+  ): F[KeyValueStore[F, Vector, String, Long]] = {
     Ref
       .of[F, Map[String, CRDT[F, Vector, Long]]](Map.empty)
-      .map(s =>
-        new InMemoryCRDTStore[F, Vector, String, Long](s, GCounterCvRDT.ctr(nodeId, nodesCount)) {}
+      .map(state =>
+        new InMemoryCRDTStore[F, Vector, String, Long](
+          state,
+          GCounterCvRDT.ctr(nodeId, nodesCount)
+        )
       )
 
   }

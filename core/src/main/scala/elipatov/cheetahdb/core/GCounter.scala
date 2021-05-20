@@ -21,8 +21,8 @@ private final class GCounterCvRDT[+F[_]: Monad](
   override def getState(): F[Vector[Long]] = counts.traverse(_.get)
 
   override def merge(others: Vector[Long]): F[Unit] = {
-    val tmp = counts.zip(others)
-      tmp.traverse { case(ref, o) =>
+    val ziped = counts.zip(others)
+      ziped.traverse { case(ref, o) =>
         ref.update(math.max(_, o))
       }.map(_ => ())
   }
@@ -36,4 +36,10 @@ object GCounterCvRDT {
   def ctr[F[+_]: Sync](replicaId: Int, replicasCount: Int): F[() => GCounter[F]] = {
     (() => new GCounterCvRDT[F](replicaId, Vector.fill(replicasCount)(Ref.unsafe[F, Long](0)))).pure[F]
   }
+
+//  def ctr_[F[+_]: Sync](replicaId: Int): F[Vector[Long] => GCounter[F]] = {
+//    val ctr = (s: Vector[Long]) =>
+//      new GCounterCvRDT[F](replicaId, s.map(Ref.unsafe[F, Long](_)))
+//    ctr.pure[F]
+//  }
 }
