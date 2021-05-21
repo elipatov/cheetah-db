@@ -1,6 +1,8 @@
 package elipatov.cheetahdb
 
 import cats.effect.{Async, Blocker, ContextShift, ExitCode, IO, IOApp, Resource}
+import cats.implicits.catsSyntaxApplicativeId
+import com.typesafe.config.ConfigFactory
 import elipatov.cheetahdb.core.{CRDTServer, HttpApi, Server}
 import org.http4s.HttpApp
 import org.http4s.server.blaze.BlazeServerBuilder
@@ -11,28 +13,32 @@ import scala.io.{BufferedSource, Source}
 
 object Main extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
-    val nodeId = 0
+    val nodeId        = 0
     val replicasCount = 3
 
-    Resource.make(CRDTServer.of[IO](nodeId, replicasCount))(_.close())
-      .use ( srv => {
+    (
+      for {
+        cfg <- Resource.make(loadConfig("application.conf").pure[IO])(_ => IO.unit)
+        srv <- Resource.make(CRDTServer.of[IO](cfg.nodeId, cfg.nodes.length))(_.close())
+      } yield (srv, cfg)
+    ).use {
+        case (srv, cfg) => {
           val api = new HttpApi(srv)
           for {
-            _ <- httpServer(api.routes.orNotFound)
-          } yield()
+            _ <- IO.unit
+            node = cfg.nodes.filter(_.nodeId == cfg.nodeId).head
+            _ <- httpServer(node, api.routes.orNotFound)
+          } yield ()
         }
-
-
-    ).as(ExitCode.Success)
+      }
+      .as(ExitCode.Success)
   }
 
-  private def fileResource(nodeId: Int, replicasCount: Int): Resource[IO, Server[IO]] =
-    Resource.make(CRDTServer.of[IO](nodeId, replicasCount))(_.close())
+  private def loadConfig(configFile: String) = Settings(ConfigFactory.load(configFile))
 
-
-  private def httpServer(httpApp: HttpApp[IO]): IO[Unit] =
+  private def httpServer(node: NodeInfo, httpApp: HttpApp[IO]): IO[Unit] =
     BlazeServerBuilder[IO](ExecutionContext.global)
-      .bindHttp(port = 8080, host = "localhost")
+      .bindHttp(node.httpPort, node.host)
       .withHttpApp(httpApp)
       .serve
       .compile

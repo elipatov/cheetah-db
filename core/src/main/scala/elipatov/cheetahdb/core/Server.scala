@@ -30,16 +30,20 @@ class CRDTServer[F[_]: Monad](
     } yield ()
   }
 
-  private def syncGCounter(other: Map[String, Vector[Long]]): F[Unit] = gCounters.sync(other)
-
   override def sync(state: SyncState): F[Unit] = {
     for {
       _ <- syncGCounter(state.gCounter)
     } yield ()
-
   }
 
-  override def close(): F[Unit] = ().pure[F]
+  override def close(): F[Unit] = flush
+
+  private def syncGCounter(other: Map[String, Vector[Long]]): F[Unit] = gCounters.sync(other)
+
+  private def flush(): F[Unit] = {
+    ().pure[F]
+  }
+
 }
 
 object CRDTServer {
