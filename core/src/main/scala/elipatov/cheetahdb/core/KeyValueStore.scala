@@ -15,6 +15,7 @@ trait CRDT[+F[_], C[_], V] {
 
 trait KeyValueStore[+F[_], C[_], K, V] {
   def get(key: K): F[Option[V]]
+  def getState(key: K): F[Option[C[V]]]
   def put(key: K, value: V): F[Unit]
   def sync(other: Map[K, C[V]]): F[Unit]
 }
@@ -23,8 +24,9 @@ private final class InMemoryCRDTStore[+F[_]: Monad, C[_], K, V](
     store: Ref[F, Map[K, CRDT[F, C, V]]],
     newCRDT: F[() => CRDT[F, C, V]]
 ) extends KeyValueStore[F, C, K, V] {
-  override def get(key: K): F[Option[V]] =
-    store.modify(m => (m, m.get(key).traverse(_.get))).flatten
+  override def get(key: K): F[Option[V]] = store.modify(m => (m, m.get(key).traverse(_.get))).flatten
+
+  override def getState(key: K): F[Option[C[V]]] = store.modify(m => (m, m.get(key).traverse(_.getState))).flatten
 
   override def put(key: K, value: V): F[Unit] = {
     for {

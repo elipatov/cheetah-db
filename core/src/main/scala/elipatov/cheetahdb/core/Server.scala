@@ -49,9 +49,15 @@ class CRDTServer[F[_]: Monad](
   private def syncGCounter(other: Map[String, Vector[Long]]): F[Unit] = gCounters.sync(other)
 
   private def flush(): F[Unit] = {
-    ().pure[F]
+    for {
+      ks <- gCountersUpdates.modify((HashSet.empty, _))
+      ss <-
+        ks.toList
+          .traverse(k => gCounters.getState(k).map(o => o.map(v => k -> v)))
+          .map(x => SyncState(nodeId, x.flatten.toMap))
+      res <- apiClient.sync(ss)
+    } yield ()
   }
-
 }
 
 object CRDTServer {
