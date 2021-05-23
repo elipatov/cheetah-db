@@ -10,6 +10,8 @@ import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.client.dsl.io._
 import org.http4s.implicits.http4sKleisliResponseSyntaxOptionT
 import org.http4s.implicits._
+import io.circe.generic.auto._
+import org.http4s.circe.CirceSensitiveDataEntityDecoder.circeEntityDecoder
 
 import scala.concurrent.ExecutionContext
 import scala.io.{BufferedSource, Source}
@@ -24,7 +26,7 @@ object Main extends IOApp {
       } yield (srv, cfg)
     ).use {
         case (srv, cfg) => {
-          val api = new HttpApi(srv)
+          val api = new HttpApi[IO](srv)
           for {
             _ <- IO.unit
             node = cfg.nodes(cfg.nodeId)
