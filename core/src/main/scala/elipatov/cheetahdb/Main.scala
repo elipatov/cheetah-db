@@ -5,28 +5,29 @@ import cats.implicits.catsSyntaxApplicativeId
 import com.typesafe.config.ConfigFactory
 import elipatov.cheetahdb.core.{CRDTServer, HttpApi, Server}
 import org.http4s.HttpApp
+import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.server.blaze.BlazeServerBuilder
+import org.http4s.client.dsl.io._
 import org.http4s.implicits.http4sKleisliResponseSyntaxOptionT
+import org.http4s.implicits._
 
 import scala.concurrent.ExecutionContext
 import scala.io.{BufferedSource, Source}
 
 object Main extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
-    val nodeId        = 0
-    val replicasCount = 3
-
     (
       for {
-        cfg <- Resource.make(loadConfig("application.conf").pure[IO])(_ => IO.unit)
-        srv <- Resource.make(CRDTServer.of[IO](cfg.nodeId, cfg.nodes.length))(_.close())
+        cfg  <- Resource.make(loadConfig("application.conf").pure[IO])(_ => IO.unit)
+        http <- BlazeClientBuilder[IO](ExecutionContext.global).resource
+        srv  <- Resource.make(CRDTServer.of[IO](http, cfg.nodeId, cfg.nodes))(_.close())
       } yield (srv, cfg)
     ).use {
         case (srv, cfg) => {
           val api = new HttpApi(srv)
           for {
             _ <- IO.unit
-            node = cfg.nodes.filter(_.nodeId == cfg.nodeId).head
+            node = cfg.nodes(cfg.nodeId)
             _ <- httpServer(node, api.routes.orNotFound)
           } yield ()
         }
