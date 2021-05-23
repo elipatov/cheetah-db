@@ -26,6 +26,7 @@ lazy val core = (project in file("core")
   settings commonSettings
   settings (libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2",
+  "com.typesafe" % "config" % "1.4.1",
   "org.typelevel" %% "cats-core" % "2.3.1",
   "org.typelevel" %% "cats-effect" % "2.4.1",
   "org.http4s" %% "http4s-dsl" % http4sVersion,

@@ -1,51 +1,38 @@
 package elipatov.cheetahdb.core
 
-import cats.effect.{IO, Sync}
-import cats.effect._
+import cats.{Applicative, MonadThrow}
+import cats.effect.{BracketThrow, _}
 import cats.syntax.all._
-import cats.{Applicative, Monoid}
-import elipatov.cheetahdb.core.SyncState
-import io.circe.generic.auto._
 import org.http4s.{HttpRoutes, _}
 import org.http4s.circe.CirceEntityCodec._
-import org.http4s.dsl.io.{->, /, Ok, POST, Root, _}
-import cats.effect._
-import cats.syntax.all._
-import cats.{Applicative, Monad, Monoid}
-import org.http4s.circe.CirceEntityCodec._
-import org.http4s.dsl.io._
-import org.http4s.implicits._
-import org.http4s.server.blaze.BlazeServerBuilder
-import org.slf4j.LoggerFactory
+import org.http4s.circe.CirceSensitiveDataEntityDecoder.circeEntityDecoder
 
-import java.time.{LocalDate, Year}
-import java.util.UUID
-import scala.concurrent.ExecutionContext
 import scala.language.postfixOps
-import scala.util.Try
 
-class HttpApi(server: Server[IO]) {
-  import io.circe.Codec
-  import io.circe.generic.auto._
-  import io.circe.generic.extras.semiauto.deriveEnumerationCodec
-
-  def routes: HttpRoutes[IO] = {
+class HttpApi[F[_]: Sync](server: Server[F])(implicit
+    M: MonadThrow[F],
+    B: BracketThrow[F],
+    decoder: EntityDecoder[F, SyncState]
+) {
+  val dsl = org.http4s.dsl.Http4sDsl[F]
+  import dsl._
+  def routes: HttpRoutes[F] = {
     sync <+> gCounter
   }
 
   private val sync = {
-    HttpRoutes.of[IO] {
-      // curl -XPOST "localhost:8080/internal/sync" -i -d '{"nodeId": 0, "gCounter": {"key0": [0, 7, 13]}}' -H "Content-Type: application/json"
-      case req @ POST -> Root / "internal" / "sync" =>
+    HttpRoutes.of[F] {
+      // curl -XPUT "localhost:8080/internal/sync" -i -d '{"nodeId": 0, "gCounter": {"key0": [0, 7, 13]}}' -H "Content-Type: application/json"
+      case req @ PUT -> Root / "internal" / "sync" =>
         for {
-          state <- req.as[SyncState]
+          state <- req.as[SyncState].flatMap(x => x.pure[F])
           _     <- server.sync(state)
           resp  <- Ok()
         } yield resp
     }
   }
 
-  private val gCounter = HttpRoutes.of[IO] {
+  private val gCounter = HttpRoutes.of[F] {
     // curl "localhost:8080/v1/gcounter/key0" -i
     case GET -> Root / "v1" / "gcounter" / key => server.getGCounter(key).flatMap(fromOption(_))
     // curl -XPUT "localhost:8080/v1/gcounter/key0" -i -d '3' -H "Content-Type: application/json"
@@ -58,9 +45,9 @@ class HttpApi(server: Server[IO]) {
       } yield resp
   }
 
-  private def fromOption[T](value: Option[T])(implicit encoder: EntityEncoder[IO, T]) =
+  private def fromOption[T](value: Option[T])(implicit encoder: EntityEncoder[F, T]) =
     value match {
-      case Some(v) => Ok(v)(IO.ioEffect, encoder)
-      case None    => NotFound()(Applicative[IO])
+      case Some(v) => Ok(v)(Applicative[F], encoder)
+      case None    => NotFound()(Applicative[F])
     }
 }
