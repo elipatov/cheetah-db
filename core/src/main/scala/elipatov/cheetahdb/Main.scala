@@ -22,7 +22,7 @@ object Main extends IOApp {
       for {
         cfg  <- Resource.make(loadConfig("application.conf").pure[IO])(_ => IO.unit)
         http <- BlazeClientBuilder[IO](ExecutionContext.global).resource
-        srv  <- Resource.make(CRDTServer.of[IO](http, cfg.nodeId, cfg.nodes))(_.close())
+        srv  <- CRDTServer.of[IO](http, cfg.nodeId, cfg.nodes)
       } yield (srv, cfg)
     ).use {
         case (srv, cfg) => {
