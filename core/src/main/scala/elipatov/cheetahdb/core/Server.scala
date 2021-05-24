@@ -100,7 +100,7 @@ object CRDTServer {
       gCtrKeys <- Ref.of[F, HashSet[String]](HashSet.empty)
       running  <- Ref.of(true)
       srv = new CRDTServer(nodeId, nodes, httpClient, gCounter, gCtrKeys, running)
-      _       <- C.start(srv.runLoop(syncInterval))
+      _        <- C.start(srv.runLoop(syncInterval))
     } yield srv
 
     Resource.make(srv)(_.close)
