@@ -6,6 +6,7 @@ import scala.jdk.CollectionConverters._
 case class Settings(root: Config) {
   final val nodeId: Int = root.getInt("nodeId")
   final val nodes: Vector[NodeInfo] = root.getConfigList("nodes").asScala.map(NodeInfo(_)).toVector
+  final val syncIntervalSec = root.getInt("syncIntervalSec")
 }
 
 case class NodeInfo(cfg: Config) {

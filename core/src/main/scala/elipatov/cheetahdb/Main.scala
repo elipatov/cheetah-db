@@ -1,20 +1,19 @@
 package elipatov.cheetahdb
 
-import cats.effect.{Async, Blocker, ContextShift, ExitCode, IO, IOApp, Resource}
+import cats.effect.{ExitCode, IO, IOApp, Resource}
 import cats.implicits.catsSyntaxApplicativeId
 import com.typesafe.config.ConfigFactory
-import elipatov.cheetahdb.core.{CRDTServer, HttpApi, Server}
-import org.http4s.HttpApp
-import org.http4s.client.blaze.BlazeClientBuilder
-import org.http4s.server.blaze.BlazeServerBuilder
-import org.http4s.client.dsl.io._
-import org.http4s.implicits.http4sKleisliResponseSyntaxOptionT
-import org.http4s.implicits._
+import elipatov.cheetahdb.core.{CRDTServer, HttpApi}
 import io.circe.generic.auto._
+import org.http4s.HttpApp
 import org.http4s.circe.CirceSensitiveDataEntityDecoder.circeEntityDecoder
+import org.http4s.client.blaze.BlazeClientBuilder
+import org.http4s.implicits.http4sKleisliResponseSyntaxOptionT
+import org.http4s.server.blaze.BlazeServerBuilder
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
-import scala.io.{BufferedSource, Source}
+import scala.concurrent.duration.FiniteDuration
 
 object Main extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
@@ -22,7 +21,7 @@ object Main extends IOApp {
       for {
         cfg  <- Resource.make(loadConfig("application.conf").pure[IO])(_ => IO.unit)
         http <- BlazeClientBuilder[IO](ExecutionContext.global).resource
-        srv  <- Resource.make(CRDTServer.of[IO](http, cfg.nodeId, cfg.nodes))(_.close())
+        srv  <- CRDTServer.of[IO](http, cfg.nodeId, cfg.nodes, FiniteDuration.apply(cfg.syncIntervalSec, TimeUnit.SECONDS))
       } yield (srv, cfg)
     ).use {
         case (srv, cfg) => {
