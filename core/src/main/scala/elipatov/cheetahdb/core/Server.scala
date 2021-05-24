@@ -92,22 +92,17 @@ object CRDTServer {
   def of[F[+_]: Sync](
       httpClient: Client[F],
       nodeId: Int,
-      nodes: Vector[NodeInfo]
-  ): Resource[F, Server[F]] = {
+      nodes: Vector[NodeInfo],
+      syncInterval: FiniteDuration
+  )(implicit T: Timer[F], C: Concurrent[F]): Resource[F, Server[F]] = {
     val srv = for {
       gCounter <- InMemoryCRDTStore.gCounterStore[F](nodeId, nodes.length)
       gCtrKeys <- Ref.of[F, HashSet[String]](HashSet.empty)
       running  <- Ref.of(true)
       srv = new CRDTServer(nodeId, nodes, httpClient, gCounter, gCtrKeys, running)
+      _       <- C.start(srv.runLoop(syncInterval))
     } yield srv
 
     Resource.make(srv)(_.close)
   }
-
-//  def of[F[+_]: Sync](httpClient: Client[F], nodeId: Int, nodes: Vector[NodeInfo]): F[Server[F]] = {
-//    for {
-//      gCounter <- InMemoryCRDTStore.gCounterStore[F](nodeId, nodes.length)
-//      gCtrKeys <- Ref.of[F, HashSet[String]](HashSet.empty)
-//    } yield new CRDTServer(nodeId, nodes, httpClient, gCounter, gCtrKeys)
-//  }
 }
