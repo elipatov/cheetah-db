@@ -8,6 +8,7 @@ import elipatov.cheetahdb.NodeInfo
 import org.http4s.Uri
 import org.http4s.client.Client
 import org.http4s.implicits.http4sLiteralsSyntax
+import org.slf4j.LoggerFactory
 
 import java.net.http.HttpClient
 import scala.collection.immutable.HashSet
@@ -22,13 +23,15 @@ trait Server[F[_]] {
 
 case class SyncState(nodeId: Int, gCounter: Map[String, Vector[Long]])
 
-class CRDTServer[F[_]: Monad](
+class CRDTServer[F[_]: Sync](
     nodeId: Int,
     nodes: Vector[NodeInfo],
     apiClient: ApiClient[F],
     gCounters: KeyValueStore[F, Vector, String, Long],
     gCountersUpdates: Ref[F, HashSet[String]]
 ) extends Server[F] {
+  private val logger = LoggerFactory.getLogger(this.getClass)
+
   override def getGCounter(key: String): F[Option[Long]] = gCounters.get(key)
 
   override def putGCounter(key: String, value: Long): F[Unit] = {
@@ -55,7 +58,12 @@ class CRDTServer[F[_]: Monad](
         ks.toList
           .traverse(k => gCounters.getState(k).map(o => o.map(v => k -> v)))
           .map(x => SyncState(nodeId, x.flatten.toMap))
-      res <- apiClient.sync(ss)
+      _ <- apiClient.sync(ss).recoverWith {
+        case e =>
+          Sync[F].delay {
+            logger.error("Sync failed", e)
+          } *> gCountersUpdates.update(x => x ++ ss.gCounter.keys)
+      }
     } yield ()
   }
 }
