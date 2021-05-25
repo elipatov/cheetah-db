@@ -1,10 +1,15 @@
+import sbtassembly.AssemblyPlugin.autoImport.{assembly, assemblyMergeStrategy}
+
 lazy val commonSettings = Seq(
   organization := "elipatov",
   homepage := Some(new URL("https://github.com/elipatov/cheetah-db")),
   startYear := Some(2021),
   scalaVersion := "2.13.3",
   licenses := Seq(("MIT", url("https://opensource.org/licenses/MIT"))),
-  libraryDependencies += compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.3" cross CrossVersion.full))
+  libraryDependencies += compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.3" cross CrossVersion.full),
+  assembly / test := {},
+  assembly / assemblyJarName := s"${name.value}.jar"
+)
 
 val circeVersion = "0.13.0"
 val http4sVersion = "0.21.22"
@@ -23,6 +28,14 @@ lazy val root = (project in file(".")
 lazy val core = (project in file("core")
   settings (name := "cheetah-db-core")
   settings (version := "0.1.0-alfa")
+  settings (
+    assembly / mainClass := Some("elipatov.cheetahdb.Main"),
+    assembly / assemblyMergeStrategy := {
+      case x =>
+        val oldStrategy = (assembly / assemblyMergeStrategy).value
+        oldStrategy(x)
+    }
+  )
   settings commonSettings
   settings (libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2",
@@ -38,7 +51,7 @@ lazy val core = (project in file("core")
   "io.circe" %% "circe-generic-extras" % circeVersion,
   "io.circe" %% "circe-optics" % circeVersion,
   "io.circe" %% "circe-parser" % circeVersion,
-  "org.slf4j" % "slf4j-nop" % "1.6.4",
+  "org.slf4j" % "slf4j-api" % "1.7.30",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "org.scalaj" %% "scalaj-http" % "2.4.2" % Test,
   "org.scalatest" %% "scalatest" % "3.2.7" % Test,

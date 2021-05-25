@@ -1,0 +1,30 @@
+version: '3.1'
+
+services:
+  cheetah0:
+    image: cheetah-db
+    restart: always
+    hostname: cheetah0
+    ports:
+      - 8080:8080
+    environment:
+      NODE_ID: 0
+
+  cheetah1:
+    image: cheetah-db
+    restart: always
+    hostname: cheetah1
+    ports:
+      - 8081:8080
+    environment:
+      NODE_ID: 1
+
+  cheetah2:
+    image: cheetah-db
+    restart: always
+    hostname: cheetah2
+    ports:
+      - 8082:8080
+    environment:
+      NODE_ID: 2
+
