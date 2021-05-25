@@ -1,18 +1,14 @@
 package elipatov.cheetahdb.core
 
-import cats.{Alternative, Monad}
-import cats.effect.{Concurrent, Resource, Sync, Timer}
 import cats.effect.concurrent.Ref
+import cats.effect.{Concurrent, Resource, Sync, Timer}
 import cats.syntax.all._
 import elipatov.cheetahdb.NodeInfo
 import org.http4s.Uri
 import org.http4s.client.Client
-import org.http4s.implicits.http4sLiteralsSyntax
 import org.slf4j.LoggerFactory
 
-import java.net.http.HttpClient
 import scala.collection.immutable.HashSet
-import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
 
 trait Server[F[_]] {
@@ -46,6 +42,7 @@ class CRDTServer[F[_]: Sync](
 
   override def sync(state: SyncState): F[Unit] = {
     for {
+      _ <- Sync[F].delay { logger.info("Received SYNC", state) }
       _ <- syncGCounter(state.gCounter)
     } yield ()
   }
@@ -65,20 +62,28 @@ class CRDTServer[F[_]: Sync](
 
   private def syncGCounter(other: Map[String, Vector[Long]]): F[Unit] = gCounters.sync(other)
 
-  private def flush(): F[Unit] = replicas.traverse(flush).map(_ => ())
-
-  private def flush(node: NodeInfo): F[Unit] = {
+  private def flush(node: NodeInfo, state: SyncState): F[Unit] = {
     import cats.Invariant.catsInstancesForOption
 
+    val uri = Uri.fromString(s"http://${node.host}:${node.httpPort}").to.get
+    val api = new HttpApiClient(httpClient, uri)
+    api.sync(state)
+//    for {
+//      _ <- Sync[F].unit
+//      uri = Uri.fromString(s"http://${node.host}:${node.httpPort}").to.get
+//      api = new HttpApiClient(httpClient, uri)
+//      _ <- api.sync(state)
+//    } yield ()
+  }
+
+  private def flush(): F[Unit] = {
     for {
       ks <- gCountersUpdates.modify((HashSet.empty, _))
       ss <-
         ks.toList
           .traverse(k => gCounters.getState(k).map(o => o.map(v => k -> v)))
           .map(x => SyncState(nodeId, x.flatten.toMap))
-      uri = Uri.fromString(s"http://${node.host}:${node.httpPort}").to.get
-      api = new HttpApiClient(httpClient, uri)
-      _ <- api.sync(ss).recoverWith {
+      _ <- replicas.traverse(flush(_, ss)).map(_ => ()).recoverWith {
         case e =>
           Sync[F].delay {
             logger.error("Flush failed", e)
@@ -100,7 +105,7 @@ object CRDTServer {
       gCtrKeys <- Ref.of[F, HashSet[String]](HashSet.empty)
       running  <- Ref.of(true)
       srv = new CRDTServer(nodeId, nodes, httpClient, gCounter, gCtrKeys, running)
-      _        <- C.start(srv.runLoop(syncInterval))
+      _ <- C.start(srv.runLoop(syncInterval))
     } yield srv
 
     Resource.make(srv)(_.close)
